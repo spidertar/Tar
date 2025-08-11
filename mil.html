@@ -555,13 +555,7 @@
       // Data fetching functions (same as original)
       async function fetchAdsbData() {
         try {
-          const response = await fetch('https://api.adsb.lol/v2/mil', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json',
-              'Origin': window.location.origin
-            }
-          });
+          const response = await fetch('/api/adsb/mil');
           const text = await response.text();
           const cleanedText = text.replace(/^while\(1\);/, '').trim();
           const data = JSON.parse(cleanedText);
@@ -573,12 +567,7 @@
 
       async function fetchFlightradarData() {
         try {
-          const response = await fetch('https://data-cloud.flightradar24.com/zones/fcgi/feeds.js', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json'
-            }
-          });
+          const response = await fetch('/api/fr24');
           const text = await response.text();
           const cleanedText = text.replace(/^while\(1\);/, '').trim();
           const data = JSON.parse(cleanedText);
@@ -608,12 +597,7 @@
 
       async function fetchOpenSkyData() {
         try {
-          const response = await fetch('https://opensky-network.org/api/states/all', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json'
-            }
-          });
+          const response = await fetch('/api/opensky');
           const data = await response.json();
           return (data.states || []).map(flight => ({
             icao24: flight[0],
@@ -690,8 +674,8 @@
       }
 
       function createMilitaryPopupContent(flight) {
-        const flightradarLink = flight.hex && flight.flight !== 'نامشخص' ? 
-          `<a class="flightradar-link" href="https://www.flightradar24.com/${flight.hex}/${flight.flight}/3d" target="_blank">نمایش ۳بعدی مسیر</a>` : '';
+                 const flightradarLink = (flight.flight && flight.flight !== 'نامشخص' && flight.hex) ? 
+          `<a class="flightradar-link" href="https://www.flightradar24.com/${flight.flight}/${flight.hex}/3d" target="_blank">نمایش ۳بعدی مسیر</a>` : '';
         
         const actionButtons = `
           <div style="margin-top: 10px; direction: ltr;">
