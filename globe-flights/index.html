@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>Globe Flights – Real‑Time Tracker</title>
+    <meta name="theme-color" content="#0b1020" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="globe-container" aria-label="3D Globe"></div>
+
+    <button id="drawer-toggle" aria-label="باز/بسته کردن کشو" title="تنظیمات">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+
+    <aside id="drawer" aria-label="کشوی تنظیمات" class="closed">
+      <header>
+        <h1>رهگیر پرواز ۳بعدی</h1>
+        <button id="drawer-close" aria-label="بستن">×</button>
+      </header>
+
+      <section class="panel">
+        <div class="field">
+          <label for="search">جستجو (callsign یا icao24)</label>
+          <input id="search" type="text" placeholder="مثل RCH, QID, UAE123, abcd12" />
+        </div>
+        <div class="field inline">
+          <label>
+            <input id="show-civil" type="checkbox" checked />
+            نمایش پروازهای غیرنظامی
+          </label>
+        </div>
+        <div class="field inline">
+          <label>
+            <input id="show-mil" type="checkbox" checked />
+            نمایش پروازهای نظامی (تخمینی)
+          </label>
+        </div>
+        <div class="field inline">
+          <label>
+            <input id="show-uav" type="checkbox" />
+            نمایش UAV (بسیار محدود)
+          </label>
+        </div>
+        <div class="field">
+          <label for="interval">بازه به‌روزرسانی: <span id="interval-label">20s</span></label>
+          <input id="interval" type="range" min="5" max="60" value="20" />
+        </div>
+        <div class="field inline">
+          <label>
+            <input id="cockpit-follow" type="checkbox" />
+            نمای کابین برای پرواز انتخاب‌شده
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>پرواز انتخاب‌شده</h2>
+        <div id="selected-details" class="details">هیچ پروازی انتخاب نشده است.</div>
+        <div class="actions">
+          <button id="focus-btn" disabled>رفتن روی پرواز</button>
+          <button id="clear-btn" disabled>لغو انتخاب</button>
+        </div>
+      </section>
+
+      <section class="panel small">
+        <p class="note">
+          داده‌های بلادرنگ از <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a> دریافت می‌شود. نمایش پروازهای نظامی/پهپاد ممکن است ناقص یا مسدود باشد. نمای کابین شبیه‌سازی دید در راستای heading است و تصویر واقعی کابین نیست.
+        </p>
+      </section>
+    </aside>
+
+    <div id="tooltip" role="tooltip" class="hidden"></div>
+    <div id="snackbar" class="hidden"></div>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/three@0.157.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.157.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three-globe@2.33.7/dist/three-globe.min.js"></script>
+    <script src="https://unpkg.com/@tweenjs/tween.js@18.6.4/dist/tween.umd.js"></script>
+
+    <!-- Optional config (copy config.example.js to config.js) -->
+    <script src="./config.js" onerror="console.warn('config.js not found; continuing without OpenSky auth')"></script>
+
+    <!-- App -->
+    <script src="./app.js"></script>
+  </body>
+</html>
