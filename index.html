@@ -1,53 +1,737 @@
 <!DOCTYPE html>
 <html lang="fa">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AEGIS C4ISR — منو اصلی</title>
-<style>
-:root{--bg:#0a0a0a;--card:#121212;--accent:#00ff41;--muted:#bfbfbf}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:Segoe UI,Roboto,system-ui;background:linear-gradient(180deg,#071016 0%,#0a0a0a 100%);color:#fff}
-.container{height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:20px}
-.brand{font-weight:700;font-size:22px;color:var(--accent);text-align:center}
-.buttons{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-.btn{min-width:140px;padding:14px 18px;border-radius:12px;border:2px solid rgba(255,255,255,0.06);background:linear-gradient(180deg,#111 0%,#0f0f0f 100%);cursor:pointer;font-weight:700}
-.btn.uav{border-color:rgba(0,255,65,0.15)}
-.btn.mil{border-color:rgba(255,68,68,0.12)}
-.btn.tar{border-color:rgba(52,152,219,0.12)}
-.lang-toggle{position:fixed;top:18px;left:18px;background:var(--card);padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.04)}
-.lang-toggle button{background:transparent;border:none;color:var(--muted);padding:6px 8px;cursor:pointer;font-weight:700}
-.footer{position:fixed;bottom:18px;right:18px;color:var(--muted);font-size:13px}
-@media(max-width:600px){.buttons{flex-direction:column;width:100%}.btn{width:100%}}
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>سیستم رصد پروازهای نظامی و UAV</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --card: #121212;
+            --accent: #00ff41;
+            --muted: #bfbfbf;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --info: #3498db;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: linear-gradient(180deg, #071016 0%, #0a0a0a 100%);
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #earth-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        .hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(18, 18, 18, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .hud h2 {
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        
+        .stat-value {
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        .drawer-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 15;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 255, 65, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .drawer-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 255, 65, 0.4);
+        }
+        
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100%;
+            background: rgba(18, 18, 18, 0.95);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 20;
+            transition: right 0.3s ease;
+            backdrop-filter: blur(15px);
+            overflow-y: auto;
+        }
+        
+        .drawer.open {
+            right: 0;
+        }
+        
+        .drawer-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .drawer-header h3 {
+            color: var(--accent);
+            font-size: 18px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        .flight-list {
+            padding: 20px;
+        }
+        
+        .flight-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .flight-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+        
+        .flight-item.selected {
+            border-color: var(--accent);
+            background: rgba(0, 255, 65, 0.1);
+        }
+        
+        .flight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .flight-id {
+            font-weight: bold;
+            color: var(--accent);
+        }
+        
+        .flight-type {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .flight-type.uav {
+            background: var(--warning);
+            color: #000;
+        }
+        
+        .flight-type.military {
+            background: var(--danger);
+            color: #fff;
+        }
+        
+        .flight-details {
+            font-size: 12px;
+            color: var(--muted);
+        }
+        
+        .flight-details div {
+            margin: 2px 0;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            background: rgba(18, 18, 18, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+        
+        .camera-view {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+            z-index: 25;
+            display: none;
+            overflow: hidden;
+        }
+        
+        .camera-view.show {
+            display: block;
+        }
+        
+        .camera-header {
+            background: var(--accent);
+            color: #000;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .camera-feed {
+            width: 100%;
+            height: calc(100% - 30px);
+            background: linear-gradient(45deg, #1a1a1a 25%, transparent 25%), 
+                        linear-gradient(-45deg, #1a1a1a 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #1a1a1a 75%), 
+                        linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        
+        .close-camera {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        @media (max-width: 768px) {
+            .drawer {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .hud {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 10px;
+            }
+            
+            .controls {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
-<div class="lang-toggle" id="langToggle">
-<button data-lang="fa">فارسی</button>
-<button data-lang="en">EN</button>
-</div>
-<div class="container">
-<div class="brand" id="brand">سامانه یکپارچه رصد و فرماندهی</div>
-<div class="buttons">
-<a class="btn uav" id="btnUAV" href="UAV.html">UAV</a>
-<a class="btn mil" id="btnMIL" href="mil.html">MIL</a>
-<a class="btn tar" id="btnTAR" href="tar.html">TAR</a>
-</div>
-<div class="footer" id="footer">Developed by Cinascorp ©</div>
-</div>
-<script>
-function setLang(lang){
-document.documentElement.lang = (lang==='en') ? 'en' : 'fa';
-document.getElementById('brand').textContent = (lang==='en') ? 'AEGIS C4ISR — Unified Tracking & Command' : 'سامانه یکپارچه رصد و فرماندهی';
-document.getElementById('btnUAV').href = 'uav.html?lang='+lang;
-document.getElementById('btnMIL').href = 'mil.html?lang='+lang;
-document.getElementById('btnTAR').href = 'tar.html?lang='+lang;
-document.getElementById('footer').textContent = (lang==='en') ? 'Developed by Cinascorp ©' : 'کاری از سینا';
-localStorage.setItem('site_lang', lang);
-}
-document.querySelectorAll('#langToggle button').forEach(btn=>btn.addEventListener('click',e=>setLang(e.target.dataset.lang)));
-const initialLang = new URLSearchParams(location.search).get('lang') || localStorage.getItem('site_lang') || 'fa';
-setLang(initialLang);
-</script>
+    <div id="earth-container"></div>
+    
+    <div class="hud">
+        <h2>وضعیت پروازها</h2>
+        <div class="stats">
+            <div class="stat">
+                <span>کل پروازها:</span>
+                <span class="stat-value" id="totalFlights">0</span>
+            </div>
+            <div class="stat">
+                <span>UAV:</span>
+                <span class="stat-value" id="uavCount">0</span>
+            </div>
+            <div class="stat">
+                <span>نظامی:</span>
+                <span class="stat-value" id="militaryCount">0</span>
+            </div>
+            <div class="stat">
+                <span>آنلاین:</span>
+                <span class="stat-value" id="onlineCount">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <button class="drawer-toggle" id="drawerToggle">📋</button>
+    
+    <div class="drawer" id="drawer">
+        <div class="drawer-header">
+            <h3>لیست پروازها</h3>
+            <button class="close-btn" id="closeDrawer">×</button>
+        </div>
+        <div class="flight-list" id="flightList">
+            <!-- پروازها اینجا اضافه می‌شوند -->
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn" id="resetView">بازنشانی دید</button>
+        <button class="control-btn" id="toggleAutoRotate">چرخش خودکار</button>
+        <button class="control-btn" id="toggleWireframe">نمایش شبکه</button>
+    </div>
+    
+    <div class="camera-view" id="cameraView">
+        <div class="camera-header" id="cameraHeader">دید سرنشین</div>
+        <button class="close-camera" id="closeCamera">×</button>
+        <div class="camera-feed" id="cameraFeed">
+            در حال بارگذاری...
+        </div>
+    </div>
+
+    <script>
+        // متغیرهای جهانی
+        let scene, camera, renderer, earth, controls;
+        let flights = [];
+        let selectedFlight = null;
+        let autoRotate = false;
+        let wireframeMode = false;
+        
+        // تنظیمات اولیه
+        function init() {
+            // ایجاد صحنه
+            scene = new THREE.Scene();
+            
+            // ایجاد دوربین
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 3);
+            
+            // ایجاد رندرر
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000);
+            document.getElementById('earth-container').appendChild(renderer.domElement);
+            
+            // کنترل‌های دوربین
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 1.5;
+            controls.maxDistance = 10;
+            
+            // ایجاد کره زمین
+            createEarth();
+            
+            // ایجاد پروازهای نمونه
+            createSampleFlights();
+            
+            // شروع انیمیشن
+            animate();
+            
+            // تنظیم event listeners
+            setupEventListeners();
+        }
+        
+        // ایجاد کره زمین
+        function createEarth() {
+            const geometry = new THREE.SphereGeometry(1, 64, 64);
+            
+            // ایجاد بافت نقشه زمین
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // پس‌زمینه آبی
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // کشیدن قاره‌ها (ساده)
+            ctx.fillStyle = '#059669';
+            
+            // آفریقا
+            ctx.fillRect(480, 200, 80, 200);
+            
+            // اروپا
+            ctx.fillRect(450, 100, 120, 80);
+            
+            // آسیا
+            ctx.fillRect(600, 150, 300, 200);
+            
+            // آمریکای شمالی
+            ctx.fillRect(100, 150, 200, 150);
+            
+            // آمریکای جنوبی
+            ctx.fillRect(200, 250, 100, 200);
+            
+            // استرالیا
+            ctx.fillRect(750, 350, 100, 80);
+            
+            // اضافه کردن ابرها
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            for (let i = 0; i < 20; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const size = Math.random() * 30 + 10;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.MeshPhongMaterial({ 
+                map: texture,
+                transparent: true,
+                opacity: 0.9
+            });
+            
+            earth = new THREE.Mesh(geometry, material);
+            scene.add(earth);
+            
+            // اضافه کردن نور
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+        }
+        
+        // ایجاد پروازهای نمونه
+        function createSampleFlights() {
+            const flightTypes = [
+                { type: 'uav', name: 'MQ-9 Reaper', speed: 400, altitude: 15000 },
+                { type: 'uav', name: 'Global Hawk', speed: 650, altitude: 20000 },
+                { type: 'military', name: 'F-35 Lightning', speed: 1200, altitude: 18000 },
+                { type: 'military', name: 'F-22 Raptor', speed: 1500, altitude: 20000 },
+                { type: 'uav', name: 'Predator', speed: 350, altitude: 12000 },
+                { type: 'military', name: 'Su-57 Felon', speed: 1400, altitude: 19000 },
+                { type: 'uav', name: 'Bayraktar TB2', speed: 220, altitude: 8000 },
+                { type: 'military', name: 'F-16 Fighting Falcon', speed: 1100, altitude: 16000 }
+            ];
+            
+            flights = flightTypes.map((flight, index) => {
+                const lat = (Math.random() - 0.5) * 180;
+                const lon = (Math.random() - 0.5) * 360;
+                const altitude = flight.altitude / 1000; // تبدیل به واحد کره
+                
+                return {
+                    id: `FLT-${String(index + 1).padStart(3, '0')}`,
+                    name: flight.name,
+                    type: flight.type,
+                    lat: lat,
+                    lon: lon,
+                    altitude: altitude,
+                    speed: flight.speed,
+                    heading: Math.random() * 360,
+                    status: Math.random() > 0.3 ? 'active' : 'inactive',
+                    lastUpdate: new Date(),
+                    hasCrew: flight.type === 'military'
+                };
+            });
+            
+            updateFlightDisplay();
+            createFlightMarkers();
+        }
+        
+        // ایجاد نشانگرهای پرواز
+        function createFlightMarkers() {
+            flights.forEach(flight => {
+                const marker = createFlightMarker(flight);
+                scene.add(marker);
+                flight.marker = marker;
+            });
+        }
+        
+        // ایجاد نشانگر پرواز
+        function createFlightMarker(flight) {
+            const geometry = new THREE.SphereGeometry(0.02, 8, 8);
+            const color = flight.type === 'uav' ? 0xffaa00 : 0xff4444;
+            const material = new THREE.MeshBasicMaterial({ color: color });
+            const marker = new THREE.Mesh(geometry, material);
+            
+            // تبدیل مختصات جغرافیایی به مختصات سه بعدی
+            const position = latLonToVector3(flight.lat, flight.lon, 1 + flight.altitude * 0.001);
+            marker.position.copy(position);
+            
+            // اضافه کردن خط مسیر
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                position,
+                position.clone().add(new THREE.Vector3(0, 0.1, 0))
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            marker.add(line);
+            
+            return marker;
+        }
+        
+        // تبدیل مختصات جغرافیایی به مختصات سه بعدی
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            
+            return new THREE.Vector3(x, y, z);
+        }
+        
+        // به‌روزرسانی نمایش پروازها
+        function updateFlightDisplay() {
+            const totalFlights = flights.length;
+            const uavCount = flights.filter(f => f.type === 'uav').length;
+            const militaryCount = flights.filter(f => f.type === 'military').length;
+            const onlineCount = flights.filter(f => f.status === 'active').length;
+            
+            document.getElementById('totalFlights').textContent = totalFlights;
+            document.getElementById('uavCount').textContent = uavCount;
+            document.getElementById('militaryCount').textContent = militaryCount;
+            document.getElementById('onlineCount').textContent = onlineCount;
+            
+            // به‌روزرسانی لیست پروازها
+            const flightList = document.getElementById('flightList');
+            flightList.innerHTML = '';
+            
+            flights.forEach(flight => {
+                const flightItem = document.createElement('div');
+                flightItem.className = 'flight-item';
+                flightItem.innerHTML = `
+                    <div class="flight-header">
+                        <span class="flight-id">${flight.id}</span>
+                        <span class="flight-type ${flight.type}">${flight.type.toUpperCase()}</span>
+                    </div>
+                    <div class="flight-details">
+                        <div>${flight.name}</div>
+                        <div>ارتفاع: ${Math.round(flight.altitude * 1000)} متر</div>
+                        <div>سرعت: ${flight.speed} کیلومتر/ساعت</div>
+                        <div>وضعیت: ${flight.status === 'active' ? 'فعال' : 'غیرفعال'}</div>
+                        ${flight.hasCrew ? '<div>سرنشین: دارد</div>' : ''}
+                    </div>
+                `;
+                
+                flightItem.addEventListener('click', () => selectFlight(flight));
+                flightList.appendChild(flightItem);
+            });
+        }
+        
+        // انتخاب پرواز
+        function selectFlight(flight) {
+            // حذف انتخاب قبلی
+            document.querySelectorAll('.flight-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // انتخاب پرواز جدید
+            const flightItems = document.querySelectorAll('.flight-item');
+            const flightIndex = flights.indexOf(flight);
+            if (flightItems[flightIndex]) {
+                flightItems[flightIndex].classList.add('selected');
+            }
+            
+            selectedFlight = flight;
+            
+            // زوم روی پرواز
+            const position = latLonToVector3(flight.lat, flight.lon, 1 + flight.altitude * 0.001);
+            camera.position.copy(position.clone().multiplyScalar(2));
+            controls.target.copy(position);
+            
+            // نمایش دید سرنشین اگر سرنشین داشته باشد
+            if (flight.hasCrew) {
+                showCrewView(flight);
+            }
+        }
+        
+        // نمایش دید سرنشین
+        function showCrewView(flight) {
+            const cameraView = document.getElementById('cameraView');
+            const cameraHeader = document.getElementById('cameraHeader');
+            const cameraFeed = document.getElementById('cameraFeed');
+            
+            cameraHeader.textContent = `دید سرنشین - ${flight.name}`;
+            
+            // شبیه‌سازی دید سرنشین
+            const views = [
+                'نمای جلو - در حال پرواز در ارتفاع بالا',
+                'نمای جانبی - مشاهده ابرها',
+                'نمای پایین - نقشه زمین',
+                'نمای عقب - مسیر پرواز'
+            ];
+            
+            const randomView = views[Math.floor(Math.random() * views.length)];
+            cameraFeed.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">🎯</div>
+                    <div>${randomView}</div>
+                    <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                        ارتفاع: ${Math.round(flight.altitude * 1000)} متر<br>
+                        سرعت: ${flight.speed} کیلومتر/ساعت<br>
+                        جهت: ${Math.round(flight.heading)}°
+                    </div>
+                </div>
+            `;
+            
+            cameraView.classList.add('show');
+        }
+        
+        // تنظیم event listeners
+        function setupEventListeners() {
+            // کشوی مخفی
+            document.getElementById('drawerToggle').addEventListener('click', () => {
+                document.getElementById('drawer').classList.add('open');
+            });
+            
+            document.getElementById('closeDrawer').addEventListener('click', () => {
+                document.getElementById('drawer').classList.remove('open');
+            });
+            
+            // بستن دید سرنشین
+            document.getElementById('closeCamera').addEventListener('click', () => {
+                document.getElementById('cameraView').classList.remove('show');
+            });
+            
+            // کنترل‌ها
+            document.getElementById('resetView').addEventListener('click', () => {
+                camera.position.set(0, 0, 3);
+                controls.target.set(0, 0, 0);
+                selectedFlight = null;
+                document.querySelectorAll('.flight-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                document.getElementById('cameraView').classList.remove('show');
+            });
+            
+            document.getElementById('toggleAutoRotate').addEventListener('click', () => {
+                autoRotate = !autoRotate;
+                controls.autoRotate = autoRotate;
+                document.getElementById('toggleAutoRotate').textContent = 
+                    autoRotate ? 'توقف چرخش' : 'چرخش خودکار';
+            });
+            
+            document.getElementById('toggleWireframe').addEventListener('click', () => {
+                wireframeMode = !wireframeMode;
+                earth.material.wireframe = wireframeMode;
+                document.getElementById('toggleWireframe').textContent = 
+                    wireframeMode ? 'نمایش عادی' : 'نمایش شبکه';
+            });
+            
+            // تغییر اندازه پنجره
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+        
+        // انیمیشن
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // چرخش کره زمین
+            if (earth) {
+                earth.rotation.y += 0.001;
+            }
+            
+            // به‌روزرسانی پروازها
+            updateFlights();
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // به‌روزرسانی پروازها
+        function updateFlights() {
+            flights.forEach(flight => {
+                if (flight.status === 'active') {
+                    // حرکت پرواز
+                    flight.lat += Math.random() * 0.1 - 0.05;
+                    flight.lon += Math.random() * 0.1 - 0.05;
+                    flight.heading += Math.random() * 2 - 1;
+                    
+                    // محدود کردن مختصات
+                    flight.lat = Math.max(-90, Math.min(90, flight.lat));
+                    flight.lon = Math.max(-180, Math.min(180, flight.lon));
+                    flight.heading = flight.heading % 360;
+                    
+                    // به‌روزرسانی موقعیت نشانگر
+                    if (flight.marker) {
+                        const position = latLonToVector3(flight.lat, flight.lon, 1 + flight.altitude * 0.001);
+                        flight.marker.position.copy(position);
+                    }
+                }
+            });
+        }
+        
+        // شروع اپلیکیشن
+        init();
+    </script>
 </body>
 </html>
