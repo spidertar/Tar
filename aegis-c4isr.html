@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>AEGIS C4ISR — سامانه یکپارچه رصد و فرماندهی</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.34/esri/themes/dark/main.css">
+  <script src="https://js.arcgis.com/4.34/"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    
+    html, body {
+      padding: 0; 
+      margin: 0; 
+      height: 100vh; 
+      width: 100vw;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      direction: rtl;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
+      color: #ffffff;
+    }
+
+    .main-container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Right Sidebar */
+    .sidebar {
+      width: 320px;
+      background: linear-gradient(145deg, #1a1a1a, #2d2d2d);
+      border-left: 3px solid #00ff41;
+      overflow-y: auto;
+      box-shadow: -5px 0 15px rgba(0, 255, 65, 0.3);
+      z-index: 1000;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #ff0000, #8b0000);
+      padding: 20px;
+      text-align: center;
+      border-bottom: 3px solid #00ff41;
+      position: relative;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    }
+
+    .header .subtitle {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-top: 5px;
+    }
+
+    .threat-indicator {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 15px;
+      height: 15px;
+      background: #ff4444;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Map Container */
+    .map-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #viewDiv {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      padding: 20px;
+    }
+
+    .control-group {
+      margin-bottom: 25px;
+      background: rgba(0, 255, 65, 0.1);
+      border: 2px solid #00ff41;
+      border-radius: 10px;
+      padding: 15px;
+    }
+
+    .control-group h3 {
+      margin: 0 0 15px 0;
+      color: #00ff41;
+      font-size: 16px;
+      border-bottom: 2px solid #00ff41;
+      padding-bottom: 8px;
+      display: flex;
+      align-items: center;
+    }
+
+    .control-group h3 i {
+      margin-left: 8px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-item {
+      background: rgba(255, 0, 0, 0.2);
+      border: 2px solid #ff0000;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .stat-item:hover {
+      background: rgba(255, 0, 0, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .stat-number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #ff0000;
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #cccccc;
+      margin-top: 5px;
+    }
+
+    /* Filter Controls */
+    .filter-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .filter-item label {
+      font-size: 14px;
+      color: #ffffff;
+    }
+
+    .filter-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #00ff41;
+    }
+
+    /* Emergency Button */
+    .emergency-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255, 0, 0, 0.2);
+      border: 2px solid #ff0000;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .emergency-btn {
+      background: linear-gradient(45deg, #ff0000, #8b0000);
+      color: white;
+      border: none;
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+    }
+
+    .emergency-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 0, 0, 0.4);
+    }
+
+    .emergency-btn:active {
+      transform: translateY(0);
+    }
+
+    /* AI Notifications */
+    .ai-notifications {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 2000;
+      max-width: 400px;
+    }
+
+    .notification {
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      color: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      border-left: 4px solid #00ff41;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.5s ease;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .notification:hover {
+      transform: translateX(-5px);
+    }
+
+    .notification.high-threat {
+      background: linear-gradient(135deg, #8b0000, #ff0000);
+      border-left-color: #ff4444;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Loading Indicator */
+    .loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3000;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .spinner {
+      border: 3px solid #00ff41;
+      border-top: 3px solid transparent;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .sidebar-toggle {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 2001;
+        background: #00ff41;
+        border: none;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Clustering */
+    .cluster-marker {
+      background: rgba(255, 0, 0, 0.8);
+      border: 2px solid #ff0000;
+      border-radius: 50%;
+      color: white;
+      text-align: center;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    }
+
+    /* 3D View Button */
+    .view-3d-btn {
+      background: linear-gradient(45deg, #1e3c72, #2a5298);
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 5px;
+      transition: all 0.3s ease;
+    }
+
+    .view-3d-btn:hover {
+      background: linear-gradient(45deg, #2a5298, #1e3c72);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- Map Container -->
+    <div class="map-container">
+      <div id="viewDiv"></div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="header">
+        <div class="threat-indicator"></div>
+        <h1>AEGIS C4ISR</h1>
+        <div class="subtitle">سامانه یکپارچه رصد و فرماندهی</div>
+      </div>
+
+      <div class="control-panel">
+        <!-- Statistics -->
+        <div class="control-group">
+          <h3><i class="fas fa-chart-line"></i>آمار پروازها</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-number" id="totalFlights">0</div>
+              <div class="stat-label">کل پروازها</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" id="middleEastFlights">0</div>
+              <div class="stat-label">خاورمیانه</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" id="militaryFlights">0</div>
+              <div class="stat-label">نظامی</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" id="droneFlights">0</div>
+              <div class="stat-label">پهپادها</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="control-group">
+          <h3><i class="fas fa-filter"></i>فیلترها</h3>
+          <div class="filter-controls">
+            <div class="filter-item">
+              <label>پروازهای غیرنظامی</label>
+              <input type="checkbox" id="civilianFilter" checked>
+            </div>
+            <div class="filter-item">
+              <label>پروازهای نظامی</label>
+              <input type="checkbox" id="militaryFilter" checked>
+            </div>
+            <div class="filter-item">
+              <label>پهپادها</label>
+              <input type="checkbox" id="droneFilter" checked>
+            </div>
+            <div class="filter-item">
+              <label>خاورمیانه</label>
+              <input type="checkbox" id="middleEastFilter" checked>
+            </div>
+            <div class="filter-item">
+              <label>هشدارهای امنیتی</label>
+              <input type="checkbox" id="securityFilter" checked>
+            </div>
+          </div>
+        </div>
+
+        <!-- Emergency Section -->
+        <div class="emergency-section">
+          <h3><i class="fas fa-exclamation-triangle"></i>وضعیت اضطراری</h3>
+          <p style="font-size: 12px; margin-bottom: 15px;">در صورت تهدید پهپاد، موقعیت خود را تغییر دهید</p>
+          <button class="emergency-btn" onclick="generateEmergencyGPX()">
+            <i class="fas fa-shield-alt"></i> تغییر موقعیت اضطراری
+          </button>
+        </div>
+
+        <!-- AI Intelligence -->
+        <div class="control-group">
+          <h3><i class="fas fa-brain"></i>هوش مصنوعی</h3>
+          <div style="font-size: 12px; line-height: 1.4;">
+            <p>سیستم هوش مصنوعی در حال تحلیل الگوهای پروازی و شناسایی تهدیدات احتمالی...</p>
+            <div id="aiStatus" style="color: #00ff41; margin-top: 10px;">
+              <i class="fas fa-circle"></i> فعال
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Toggle -->
+    <button class="sidebar-toggle" id="sidebarToggle" style="display: none;">
+      <i class="fas fa-bars"></i>
+    </button>
+  </div>
+
+  <!-- AI Notifications Container -->
+  <div class="ai-notifications" id="aiNotifications"></div>
+
+  <!-- Loading Indicator -->
+  <div class="loading" id="loading" style="display: none;">
+    <div class="spinner"></div>
+    <div>در حال بارگذاری داده‌ها...</div>
+  </div>
+
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/symbols/PictureMarkerSymbol",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/geometry/Point",
+      "esri/PopupTemplate",
+      "esri/geometry/Extent",
+      "esri/widgets/Home",
+      "esri/widgets/LayerList",
+      "esri/widgets/BasemapToggle",
+      "esri/widgets/BasemapGallery"
+    ], function(
+      Map, MapView, GraphicsLayer, Graphic, PictureMarkerSymbol, SimpleMarkerSymbol,
+      Point, PopupTemplate, Extent, Home, LayerList, BasemapToggle, BasemapGallery
+    ) {
+      
+      // Initialize Socket.IO
+      const socket = io('http://localhost:3000');
+      
+      // Global variables
+      let view, civilianLayer, militaryLayer, droneLayer;
+      let flightData = { adsb: [], flightradar: [], opensky: [], military: [], drones: [] };
+      let isFirstLoad = true;
+      let notificationCount = 0;
+
+      // Create map
+      const map = new Map({
+        basemap: "satellite"
+      });
+
+      // Create view
+      view = new MapView({
+        container: "viewDiv",
+        map: map,
+        zoom: 6,
+        center: [51.3890, 35.6892], // Tehran
+        constraints: {
+          rotationEnabled: false
+        }
+      });
+
+      // Create layers
+      civilianLayer = new GraphicsLayer({ title: "پروازهای غیرنظامی" });
+      militaryLayer = new GraphicsLayer({ title: "پروازهای نظامی" });
+      droneLayer = new GraphicsLayer({ title: "پهپادها" });
+
+      map.addMany([civilianLayer, militaryLayer, droneLayer]);
+
+      // Add widgets
+      const homeWidget = new Home({ view: view });
+      const layerList = new LayerList({ view: view });
+      const basemapToggle = new BasemapToggle({ view: view });
+
+      view.ui.add(homeWidget, "top-left");
+      view.ui.add(layerList, "top-right");
+      view.ui.add(basemapToggle, "bottom-left");
+
+      // Icon mapping
+      const iconMap = {
+        civilian: "https://img.icons8.com/color/48/airplane-mode-on.png",
+        military: "https://img.icons8.com/color/48/fighter-jet.png",
+        drone: "https://img.icons8.com/color/48/drone.png",
+        fighter: "https://img.icons8.com/color/48/fighter-jet.png",
+        navy: "https://img.icons8.com/color/48/warship.png",
+        iranian: "https://img.icons8.com/color/48/iran-flag.png"
+      };
+
+      // Get icon size based on zoom
+      function getIconSize(zoom) {
+        if (zoom > 10) return 24;
+        if (zoom > 8) return 20;
+        if (zoom > 6) return 16;
+        return 12;
+      }
+
+      // Identify flight type
+      function identifyFlightType(flight) {
+        if (flight.type === 'drone') return 'drone';
+        if (flight.type === 'military' || flight.type === 'faa_limited') return 'military';
+        if (flight.callsign && flight.callsign.includes('IR')) return 'iranian';
+        if (flight.callsign && (flight.callsign.includes('F') || flight.callsign.includes('MIG'))) return 'fighter';
+        return 'civilian';
+      }
+
+      // Create popup content
+      function createPopupContent(flight) {
+        const flightType = identifyFlightType(flight);
+        const city = getCityFromCoordinates(flight.lat, flight.lon);
+        
+        let content = `
+          <div style="font-family: 'Segoe UI', sans-serif; direction: rtl;">
+            <h3 style="margin: 0 0 10px 0; color: #00ff41;">
+              ${flightType === 'drone' ? '🚁 پهپاد' : 
+                flightType === 'military' ? '🎖️ نظامی' : 
+                flightType === 'fighter' ? '⚔️ جنگنده' : '✈️ غیرنظامی'}
+            </h3>
+            <p><strong>شناسه پرواز:</strong> ${flight.callsign || 'نامشخص'}</p>
+            <p><strong>کد ICAO:</strong> ${flight.icao24 || 'نامشخص'}</p>
+            <p><strong>شهر:</strong> ${city}</p>
+            <p><strong>ارتفاع:</strong> ${flight.altitude ? Math.round(flight.altitude) + ' فوت' : 'نامشخص'}</p>
+            <p><strong>سرعت:</strong> ${flight.velocity ? Math.round(flight.velocity) + ' گره' : 'نامشخص'}</p>
+            <p><strong>جهت:</strong> ${flight.heading ? Math.round(flight.heading) + '°' : 'نامشخص'}</p>
+            <p><strong>منبع:</strong> ${flight.source || 'نامشخص'}</p>
+        `;
+
+        if (flight.icao24 && flight.icao24 !== 'N/A') {
+          content += `
+            <button class="view-3d-btn" onclick="open3DView('${flight.icao24}', '${flight.callsign}')">
+              <i class="fas fa-cube"></i> نمایش سه بعدی
+            </button>
+          `;
+        }
+
+        content += '</div>';
+        return content;
+      }
+
+      // Get city from coordinates (simplified)
+      function getCityFromCoordinates(lat, lon) {
+        // This would typically use a reverse geocoding service
+        // For now, return a placeholder
+        return 'تهران';
+      }
+
+      // Update markers with clustering
+      function updateMarkers() {
+        const allFlights = [
+          ...flightData.adsb,
+          ...flightData.flightradar,
+          ...flightData.opensky,
+          ...flightData.military,
+          ...flightData.drones
+        ];
+
+        civilianLayer.removeAll();
+        militaryLayer.removeAll();
+        droneLayer.removeAll();
+
+        const iconSize = getIconSize(view.zoom);
+        const clusters = {};
+
+        allFlights.forEach(flight => {
+          if (flight.lat && flight.lon) {
+            const flightType = identifyFlightType(flight);
+            
+            // Check filters
+            if (!document.getElementById('civilianFilter').checked && flightType === 'civilian') return;
+            if (!document.getElementById('militaryFilter').checked && flightType === 'military') return;
+            if (!document.getElementById('droneFilter').checked && flightType === 'drone') return;
+
+            const layer = flightType === 'drone' ? droneLayer : 
+                         (flightType === 'military' || flightType === 'fighter' || flightType === 'navy' || flightType === 'iranian') ? militaryLayer : 
+                         civilianLayer;
+
+            const graphic = new Graphic({
+              geometry: {
+                type: "point",
+                latitude: flight.lat,
+                longitude: flight.lon
+              },
+              symbol: {
+                type: "picture-marker",
+                url: iconMap[flightType] || iconMap.civilian,
+                width: iconSize,
+                height: iconSize,
+                angle: flight.heading || 0
+              },
+              attributes: flight,
+              popupTemplate: {
+                title: flightType === 'drone' ? "🚁 پهپاد" :
+                       flightType === 'military' ? "🎖️ پرواز نظامی" :
+                       flightType === 'fighter' ? "⚔️ جنگنده" :
+                       flightType === 'iranian' ? "🇮🇷 هواپیمای ایرانی" : "✈️ پرواز غیرنظامی",
+                content: createPopupContent(flight)
+              }
+            });
+            layer.add(graphic);
+          }
+        });
+
+        updateStats();
+        generateAINotifications();
+      }
+
+      // Update statistics
+      function updateStats() {
+        const allFlights = [
+          ...flightData.adsb,
+          ...flightData.flightradar,
+          ...flightData.opensky,
+          ...flightData.military,
+          ...flightData.drones
+        ];
+
+        const middleEastBounds = {
+          lat: { min: 25, max: 40 },
+          lon: { min: 35, max: 65 }
+        };
+
+        const middleEastFlights = allFlights.filter(flight => 
+          flight.lat >= middleEastBounds.lat.min && 
+          flight.lat <= middleEastBounds.lat.max &&
+          flight.lon >= middleEastBounds.lon.min && 
+          flight.lon <= middleEastBounds.lon.max
+        );
+
+        document.getElementById('totalFlights').textContent = allFlights.length;
+        document.getElementById('middleEastFlights').textContent = middleEastFlights.length;
+        document.getElementById('militaryFlights').textContent = flightData.military.length + flightData.adsb.length;
+        document.getElementById('droneFlights').textContent = flightData.drones.length;
+      }
+
+      // Generate AI notifications
+      function generateAINotifications() {
+        const notifications = [];
+        
+        // Check for high-altitude flights
+        const highAltitudeFlights = flightData.adsb.filter(f => f.altitude > 30000);
+        if (highAltitudeFlights.length > 0) {
+          notifications.push({
+            type: 'info',
+            message: `${highAltitudeFlights.length} پرواز در ارتفاع بالا شناسایی شد`,
+            threat: 'low'
+          });
+        }
+
+        // Check for drones in military areas
+        const militaryDrones = flightData.drones.filter(d => d.threat_level === 'high');
+        if (militaryDrones.length > 0) {
+          notifications.push({
+            type: 'warning',
+            message: `${militaryDrones.length} پهپاد با سطح تهدید بالا شناسایی شد`,
+            threat: 'high'
+          });
+        }
+
+        // Add notifications
+        notifications.forEach(notification => {
+          addNotification(notification.message, notification.threat);
+        });
+      }
+
+      // Add notification
+      function addNotification(message, threat = 'low') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${threat === 'high' ? 'high-threat' : ''}`;
+        notification.innerHTML = `
+          <div style="display: flex; align-items: center;">
+            <i class="fas fa-${threat === 'high' ? 'exclamation-triangle' : 'info-circle'}" style="margin-left: 10px;"></i>
+            <div>
+              <div style="font-weight: bold; margin-bottom: 5px;">هوش مصنوعی AEGIS</div>
+              <div style="font-size: 13px;">${message}</div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('aiNotifications').appendChild(notification);
+
+        // Remove after 10 seconds
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 10000);
+      }
+
+      // Emergency GPX generation
+      window.generateEmergencyGPX = function() {
+        const randomLat = 35.6892 + (Math.random() - 0.5) * 2;
+        const randomLon = 51.3890 + (Math.random() - 0.5) * 2;
+        
+        fetch('/api/gpx/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            lat: randomLat,
+            lon: randomLon,
+            altitude: Math.floor(Math.random() * 1000) + 100,
+            speed: Math.floor(Math.random() * 50) + 10
+          })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'emergency_location.gpx';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          
+          addNotification('فایل GPX اضطراری ایجاد شد', 'low');
+        })
+        .catch(error => {
+          console.error('Error generating GPX:', error);
+          addNotification('خطا در ایجاد فایل GPX', 'high');
+        });
+      };
+
+      // Open 3D view
+      window.open3DView = function(icao24, callsign) {
+        const hex = icao24.toLowerCase();
+        const flightId = callsign || icao24;
+        const url = `https://www.flightradar24.com/${flightId}/${hex}/3d`;
+        window.open(url, '_blank');
+      };
+
+      // Socket.IO event handlers
+      socket.on('flightDataUpdate', (data) => {
+        flightData = data;
+        updateMarkers();
+        
+        if (isFirstLoad) {
+          const bounds = [
+            ...flightData.adsb,
+            ...flightData.flightradar,
+            ...flightData.opensky,
+            ...flightData.military,
+            ...flightData.drones
+          ].filter(f => f.lat && f.lon).map(f => [f.lat, f.lon]);
+          
+          if (bounds.length > 0) {
+            view.goTo({ target: bounds });
+            isFirstLoad = false;
+          }
+        }
+      });
+
+      // Zoom change handler
+      view.watch("zoom", () => {
+        const iconSize = getIconSize(view.zoom);
+        [civilianLayer, militaryLayer, droneLayer].forEach(layer => {
+          layer.graphics.forEach(graphic => {
+            graphic.symbol.width = iconSize;
+            graphic.symbol.height = iconSize;
+          });
+        });
+      });
+
+      // Mobile sidebar toggle
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebar = document.getElementById('sidebar');
+      
+      if (window.innerWidth <= 768) {
+        sidebarToggle.style.display = 'block';
+        sidebarToggle.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+        });
+      }
+
+      // Filter change handlers
+      document.querySelectorAll('.filter-controls input').forEach(input => {
+        input.addEventListener('change', updateMarkers);
+      });
+
+      // Initial load
+      document.getElementById('loading').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+        addNotification('سامانه AEGIS C4ISR آماده به کار است', 'low');
+      }, 2000);
+    });
+  </script>
+</body>
+</html>
