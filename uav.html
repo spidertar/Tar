@@ -324,6 +324,11 @@
             00:00:00
           </div>
         </div>
+        <div class="control-group">
+          <h3><i class="fas fa-location-dot"></i> موک‌کردن لوکیشن (GPX)</h3>
+          <input type="file" id="gpx-file" accept=".gpx" />
+          <button class="filter-button" id="play-gpx">نمایش و پخش GPX</button>
+        </div>
       </div>
     </div>
 
@@ -343,33 +348,36 @@
         <div>ZOOM: <span id="zoom-display">--</span></div>
       </div>
 
-      <div class="legend">
-        <h4 style="margin: 0 0 10px 0; color: #00ff41;">راهنمای نمادها</h4>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #000000;"></div>
-          <span>پهپاد</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #ff0000;"></div>
-          <span>نظامی</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #ffa500;"></div>
-          <span>جنگنده</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #00ff00;"></div>
-          <span>ایرانی</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #0066cc;"></div>
-          <span>غیرنظامی</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-icon" style="background: #ffff00;"></div>
-          <span>ناشناس</span>
-        </div>
-      </div>
+             <div class="legend">
+         <h4 style="margin: 0 0 10px 0; color: #00ff41;">راهنمای نمادها</h4>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #000000;"></div>
+           <span>پهپاد</span>
+         </div>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #ff0000;"></div>
+           <span>نظامی</span>
+         </div>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #ffa500;"></div>
+           <span>جنگنده</span>
+         </div>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #00ff00;"></div>
+           <span>ایرانی</span>
+         </div>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #0066cc;"></div>
+           <span>غیرنظامی</span>
+         </div>
+         <div class="legend-item">
+           <div class="legend-icon" style="background: #ffff00;"></div>
+           <span>ناشناس</span>
+         </div>
+         <div style="margin-top:8px;font-size:12px;color:#ccc">
+           <span>Middle East flights: </span><b id="me-count">0</b>
+         </div>
+       </div>
     </div>
   </div>
 
@@ -411,9 +419,35 @@
       const droneLayer = new GraphicsLayer({ title: "Drones" });
       const militaryLayer = new GraphicsLayer({ title: "Military" });
       const civilianLayer = new GraphicsLayer({ title: "Civilian" });
-      const unknownLayer = new GraphicsLayer({ title: "Unknown" });
-      map.addMany([civilianLayer, militaryLayer, droneLayer, unknownLayer]);
-      // Global variables
+             const unknownLayer = new GraphicsLayer({ title: "Unknown" });
+       map.addMany([civilianLayer, militaryLayer, droneLayer, unknownLayer]);
+
+       // Screen-grid clustering toggle
+       let enableScreenGridCluster = true;
+       const screenCellPx = 44; // cluster by roughly icon size on mobile
+       function clusterByScreenGrid(flights) {
+         if (!enableScreenGridCluster) return flights;
+         const extent = view.extent;
+         if (!extent) return flights;
+         const clusters = new Map();
+         flights.forEach(f => {
+           if (!(f.lat && f.lon)) return;
+           const screenPoint = view.toScreen({ latitude: f.lat, longitude: f.lon });
+           const key = `${Math.floor(screenPoint.x / screenCellPx)}_${Math.floor(screenPoint.y / screenCellPx)}`;
+           const bucket = clusters.get(key) || [];
+           bucket.push(f);
+           clusters.set(key, bucket);
+         });
+         const reduced = [];
+         clusters.forEach(bucket => {
+           if (bucket.length === 1) { reduced.push(bucket[0]); return; }
+           const lat = bucket.reduce((s, b) => s + b.lat, 0) / bucket.length;
+           const lon = bucket.reduce((s, b) => s + b.lon, 0) / bucket.length;
+           reduced.push({ ...bucket[0], lat, lon, cluster_count: bucket.length });
+         });
+         return reduced;
+       }
+       // Global variables
       let isFirstLoad = true;
       let currentFilter = 'all';
       let updateCounter = 0;
@@ -433,13 +467,7 @@
       }
       async function fetchAdsbData() {
         try {
-          const response = await fetch('https://api.adsb.lol/v2/mil', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json',
-              'Origin': window.location.origin
-            }
-          });
+          const response = await fetch('/api/adsb/mil');
           const text = await response.text();
           const cleanedText = text.replace(/^while\(1\);/, '').trim();
           const data = JSON.parse(cleanedText);
@@ -450,12 +478,7 @@
       }
       async function fetchFlightradarData() {
         try {
-          const response = await fetch('https://data-cloud.flightradar24.com/zones/fcgi/feeds.js', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json'
-            }
-          });
+          const response = await fetch('/api/fr24');
           const text = await response.text();
           const cleanedText = text.replace(/^while\(1\);/, '').trim();
           const data = JSON.parse(cleanedText);
@@ -484,12 +507,7 @@
       }
       async function fetchOpenSkyData() {
         try {
-          const response = await fetch('https://opensky-network.org/api/states/all', {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              'Accept': 'application/json'
-            }
-          });
+          const response = await fetch('/api/opensky');
           const data = await response.json();
           return (data.states || []).map(flight => ({
             icao24: flight[0],
@@ -630,8 +648,8 @@
           'low': '#00ff00'
         }[threatLevel];
 
-        const flightradarLink = flight.hex && flight.flight !== 'نامشخص' ? 
-          `<a class="flightradar-link" href="https://www.flightradar24.com/${flight.hex}/${flight.flight}/3d" target="_blank">نمایش ۳بعدی مسیر</a>` : '';
+                 const flightradarLink = (flight.flight && flight.flight !== 'نامشخص' && flight.hex) ? 
+          `<a class="flightradar-link" href="https://www.flightradar24.com/${flight.flight}/${flight.hex}/3d" target="_blank">نمایش ۳بعدی مسیر</a>` : '';
         
         return `
           <div style="border: 2px solid ${threatColor}; padding: 10px; border-radius: 5px;">
@@ -654,7 +672,7 @@
         `;
       }
       function createCivilianPopupContent(flight) {
-        const flightradarLink = flight.hex && flight.flight !== 'نامشخص' ? 
+                 const flightradarLink = (flight.flight && flight.flight !== 'نامشخص' && flight.hex) ? 
           `<a class="flightradar-link" href="https://www.flightradar24.com/${flight.flight}/${flight.hex}/3d" target="_blank">نمایش سه بعدی و مسیر</a>` : '';
         
         return `
@@ -672,14 +690,18 @@
         `;
       }
       // Update statistics
-      function updateStatistics(allFlights) {
-        stats = {
-          drones: 0,
-          military: 0,
-          civilian: 0,
-          unknown: 0,
-          threats: { critical: 0, high: 0, medium: 0, low: 0 }
-        };
+             function updateStatistics(allFlights) {
+         stats = {
+           drones: 0,
+           military: 0,
+           civilian: 0,
+           unknown: 0,
+           threats: { critical: 0, high: 0, medium: 0, low: 0 }
+         };
+
+         // Middle East rough bbox (lon 20..65, lat 10..40)
+         const meFlights = allFlights.filter(f => f.lat && f.lon && f.lon >= 20 && f.lon <= 65 && f.lat >= 10 && f.lat <= 40);
+         document.getElementById('me-count').textContent = meFlights.length;
 
         allFlights.forEach(flight => {
           const flightType = identifyFlightType(flight);
@@ -761,12 +783,13 @@
         const flightradarFlights = await fetchFlightradarData();
         const openSkyFlights = await fetchOpenSkyData();
         const droneData = getSampleDroneData();
-        const allFlights = [
-          ...adsbFlights.map(f => ({ ...f, type: 'military' })), 
-          ...flightradarFlights, 
-          ...openSkyFlights, 
-          ...droneData
-        ];
+                 let allFlights = [
+           ...adsbFlights.map(f => ({ ...f, type: 'military' })), 
+           ...flightradarFlights, 
+           ...openSkyFlights, 
+           ...droneData
+         ];
+         allFlights = clusterByScreenGrid(allFlights);
         // Clear existing markers
         civilianLayer.removeAll();
         militaryLayer.removeAll();
@@ -825,14 +848,14 @@
         updateCounter++;
         lastUpdateTime = new Date();
         updateTimer();
-        // Auto-zoom on first load
-        if (isFirstLoad && allFlights.length > 0) {
-          const bounds = allFlights.filter(f => f.lat && f.lon).map(f => [f.lat, f.lon]);
-          if (bounds.length > 0) {
-            view.goTo({ target: bounds });
-            isFirstLoad = false;
-          }
-        }
+                 // Auto-zoom on first load
+         if (isFirstLoad && allFlights.length > 0) {
+           const points = allFlights.filter(f => f.lat && f.lon).map(f => ({ latitude: f.lat, longitude: f.lon }));
+           if (points.length > 0) {
+             view.goTo({ target: points });
+             isFirstLoad = false;
+           }
+         }
       }
       // Timer functionality
       function updateTimer() {
@@ -852,12 +875,65 @@
         document.getElementById('lon-display').textContent = center.longitude.toFixed(4);
         document.getElementById('zoom-display').textContent = view.zoom.toFixed(1);
       }
-      // Event listeners
-      document.querySelectorAll('.filter-button').forEach(button => {
-        button.addEventListener('click', () => {
-          applyFilter(button.dataset.filter);
-        });
+
+      // GPX mock location playback
+      let mockPath = [];
+      let mockIdx = 0;
+      let mockTimer = null;
+      let mockGraphic = null;
+
+      function parseGpx(xmlText) {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlText, 'application/xml');
+        const pts = Array.from(xml.getElementsByTagName('trkpt')).map(pt => ({
+          lat: parseFloat(pt.getAttribute('lat')),
+          lon: parseFloat(pt.getAttribute('lon'))
+        })).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+        return pts;
+      }
+
+      document.getElementById('gpx-file').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        mockPath = parseGpx(text);
+        mockIdx = 0;
       });
+
+      document.getElementById('play-gpx').addEventListener('click', () => {
+        if (!mockPath.length) return;
+        if (mockTimer) { clearInterval(mockTimer); mockTimer = null; }
+        if (mockGraphic) { droneLayer.remove(mockGraphic); mockGraphic = null; }
+        mockTimer = setInterval(() => {
+          const p = mockPath[mockIdx % mockPath.length];
+          mockIdx++;
+          if (!mockGraphic) {
+            mockGraphic = new Graphic({
+              geometry: { type: 'point', latitude: p.lat, longitude: p.lon },
+              symbol: { type: 'simple-marker', color: 'cyan', size: 10 },
+              attributes: { id: 'mock', type: 'mock' },
+              popupTemplate: { title: 'Mock GPS', content: 'در حال پخش مسیر GPX' }
+            });
+            droneLayer.add(mockGraphic);
+          } else {
+            mockGraphic.geometry.latitude = p.lat;
+            mockGraphic.geometry.longitude = p.lon;
+          }
+          try { if (window.Android && window.Android.setMockLocation) window.Android.setMockLocation(p.lat, p.lon); } catch {}
+        }, 1000);
+      });
+             // Event listeners
+       document.querySelectorAll('.filter-button').forEach(button => {
+         button.addEventListener('click', () => {
+           applyFilter(button.dataset.filter);
+         });
+       });
+       // Toggle clustering with double-tap/click on map
+       view.on('double-click', (e) => {
+         e.stopPropagation();
+         enableScreenGridCluster = !enableScreenGridCluster;
+         updateMarkers();
+       });
       // Watch for zoom changes
       view.watch("zoom", () => {
         const iconSize = getIconSize(view.zoom);
